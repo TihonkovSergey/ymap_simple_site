@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>Оптимальное добавление множества меток</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <script src="https://api-maps.yandex.ru/2.1/?lang=ru-RU&amp;apikey=<your-key>"
+            type="text/javascript"></script>
+    <script src="https://yandex.st/jquery/2.2.3/jquery.min.js" type="text/javascript"></script>
+
+    {% block javascript %}
+        <script>
+            function addMark(coords) {
+                var body = document.getElementById("body_id").value,
+                    title = document.getElementById("title_id").value
+                if (!title){
+                    alert('Название должно быть обязательно заполнено!')
+                }else {
+                    $.post("/", {
+                        javascript_data: JSON.stringify({
+                            'event': 'add',
+                            'coords': coords,
+                            'title': title,
+                            'body': body
+                        })
+                    });
+                    location.reload();
+                }
+            }
+
+            function removeMark(markId) {
+                $.post( "/", {
+                    javascript_data: JSON.stringify({
+                        'event': 'delete',
+                        'id': markId
+                    })
+                });
+            }
+
+            function init () {
+                var myMap = new ymaps.Map('map', {
+                        center: [59.87315, 29.82747],
+                        zoom: 16
+                    }, {
+                        searchControlProvider: 'yandex#search'
+                    }),
+                    objectManager = new ymaps.ObjectManager({
+                        clusterize: true,
+                        gridSize: 32,
+                        clusterDisableClickZoom: true
+                    });
+
+                objectManager.objects.options.set('preset', 'islands#greenDotIcon')
+                objectManager.clusters.options.set('preset', 'islands#greenClusterIcons')
+                data = JSON.parse({{ marks | tojson | safe}})
+                myMap.geoObjects.add(objectManager)
+                objectManager.add(data)
+
+                myMap.geoObjects.events.add('mousedown', function (e) {
+                    if (e.get('domEvent').originalEvent.button === 1){
+                        var objectId = e.get('objectId')
+                        if (confirm('Вы действительно хотите удалить эту метку?')){
+                            objectManager.remove([objectId])
+                            removeMark(objectId)
+                        }
+                    }
+                });
+
+                myMap.events.add('contextmenu', function (e) {
+                    if (!myMap.balloon.isOpen()) {
+                        var coords = e.get('coords');
+                        var myCoords = [coords[0].toPrecision(6), coords[1].toPrecision(6)].join(' ')
+                        myMap.balloon.open(coords, {
+                            contentHeader:'Добавление метки',
+                            contentBody:"<p>Название метки: <input id=\"title_id\" name='login'></p>" +
+                                "<p>Текст метки:<input id=\"body_id\"></p>" +
+                                "<p><input type='submit' value='Добавить' onclick='addMark(" +
+                                "\"" + myCoords + "\"" +
+                                ")'></p>",
+                            contentFooter:'<sup>Нажмите на крестик чтобы отменить</sup>'
+                        });
+                    }
+                    else {
+                        myMap.balloon.close();
+                    }
+                });
+
+                myMap.events.add('click', function (e) {
+                    if (myMap.balloon.isOpen()) {
+                         myMap.balloon.close();
+                    }
+                });
+
+            }
+            ymaps.ready(init)
+        </script>
+    {% endblock %}
+
+
+	<style>
+        html, body, #map {
+            width: 100%; height: 100%; padding: 0; margin: 0;
+        }
+        a {
+            color: #04b; /* Цвет ссылки */
+            text-decoration: none; /* Убираем подчеркивание у ссылок */
+        }
+        a:visited {
+            color: #04b; /* Цвет посещённой ссылки */
+        }
+        a:hover {
+            color: #f50000; /* Цвет ссылки при наведении на нее курсора мыши */
+        }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+</body>
+</html>
